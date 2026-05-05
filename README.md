@@ -1,19 +1,19 @@
-# TenderAI — AI-Powered Tender Evaluation System
+# TenderAI - AI Powered Tender Evaluation System
 
 ## What This Does
 
 TenderAI is an explainable AI decision-support system for government tender evaluation.
 It extracts eligibility data from bidder PDFs, runs a deterministic evaluation engine,
-and routes uncertain cases to a human reviewer — with a full, timestamped audit trail
+and routes uncertain cases to a human reviewer with a full, timestamped audit trail
 for every decision.
 
 ## Tech Stack
 
 **Backend**
 - Python 3.10+ · FastAPI · Uvicorn
-- PyMuPDF — clean PDF text extraction
-- Mistral OCR (`mistral-ocr-latest`) — fallback for scanned documents
-- Groq LLM (`llama-3.3-70b-versatile`) — extraction fallback + explanation generation
+- PyMuPDF - clean PDF text extraction
+- Mistral OCR (`mistral-ocr-latest`) - fallback for scanned documents
+- Groq LLM (`llama-3.3-70b-versatile`) - extraction fallback + explanation generation
 
 **Frontend**
 - Vite · React 18 · TypeScript
@@ -50,10 +50,10 @@ TenderAI/
 
 - Python 3.10+
 - Node.js 18+
-- Mistral API Key — free at [console.mistral.ai](https://console.mistral.ai)
-- Groq API Key — free at [console.groq.com](https://console.groq.com)
+- Mistral API Key - free at [console.mistral.ai](https://console.mistral.ai)
+- Groq API Key - free at [console.groq.com](https://console.groq.com)
 
-### Step 1 — Clone and Configure
+### Step 1 - Clone and Configure
 
 ```bash
 git clone <repo-url>
@@ -62,7 +62,7 @@ cp .env.example .env
 # Open .env and add your MISTRAL_API_KEY and GROQ_API_KEY
 ```
 
-### Step 2 — Backend Setup
+### Step 2 - Backend Setup
 
 ```bash
 cd backend
@@ -73,7 +73,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-### Step 3 — Frontend Setup
+### Step 3 - Frontend Setup
 
 ```bash
 cd frontend
@@ -82,7 +82,7 @@ npm run dev
 # Opens at http://localhost:5173
 ```
 
-### Step 4 — Run the Demo
+### Step 4 - Demo
 
 1. Open [http://localhost:5173](http://localhost:5173)
 2. Upload any PDF as the tender document (criteria are pre-configured)
@@ -91,7 +91,7 @@ npm run dev
 5. For **NEEDS REVIEW** rows → enter the confirmed value + reviewer name → **Submit Review**
 6. Check the **Decision Log** panel at the bottom for the full audit trail
 
-## Demo Flow (for presentation)
+## Demo Flow
 
 | Bidder | Turnover | GST | Projects | Overall |
 |--------|----------|-----|----------|---------|
@@ -132,6 +132,6 @@ If confidence < 0.75 → decision = **NEEDS REVIEW** (never auto-fail on uncerta
 
 - Dynamic criteria extraction from tender PDF
 - Integration with GeM / NIC eProcurement portal
-- Multi-language support (Hindi)
+- Multi-language support
 - Role-based access control
 - Full audit export to PDF

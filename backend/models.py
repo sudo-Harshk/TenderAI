@@ -37,6 +37,7 @@ class BidderResult(BaseModel):
 class AuditEntry(BaseModel):
     model_config = ConfigDict(frozen=False)
 
+    event_type: str = "EXTRACTED"
     timestamp: datetime
     bidder_id: str
     bidder_name: str

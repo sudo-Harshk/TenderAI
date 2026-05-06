@@ -21,6 +21,7 @@ export interface BidderResult {
 }
 
 export interface AuditEntry {
+  event_type?: "EXTRACTED" | "REVIEWED" | string;
   timestamp: string;
   bidder_id: string;
   bidder_name: string;

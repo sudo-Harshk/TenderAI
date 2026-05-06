@@ -1,7 +1,7 @@
 import re
 import os
 import base64
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 CONFIDENCE_REGEX_CLEAN = 0.95
 CONFIDENCE_REGEX_OCR = 0.75
@@ -13,6 +13,7 @@ CONFIDENCE_NOT_FOUND = 0.30
 def extract_text_from_pdf(pdf_bytes: bytes) -> Tuple[str, bool]:
     """Extract text using PyMuPDF. Falls back to Mistral OCR for scanned docs."""
     text = ""
+    has_mixed_scanned_pages = False
 
     try:
         import fitz
@@ -20,11 +21,18 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> Tuple[str, bool]:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         try:
             for page_num in range(min(15, len(doc))):
-                text += doc[page_num].get_text()
+                page = doc[page_num]
+                page_text = page.get_text()
+                text += page_text
+
+                low_text_page = len(page_text.strip()) < 50
+                has_images = bool(page.get_images(full=True))
+                if low_text_page and has_images:
+                    has_mixed_scanned_pages = True
         finally:
             doc.close()
 
-        if len(text.strip()) > 500:
+        if len(text.strip()) > 500 and not has_mixed_scanned_pages:
             return text, False
     except Exception as e:
         print(f"PyMuPDF failed: {e}")
@@ -38,7 +46,7 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> Tuple[str, bool]:
         print(f"Mistral OCR failed: {e}")
 
     if text.strip():
-        return text, True
+        return text, has_mixed_scanned_pages or len(text.strip()) <= 500
 
     return "", False
 
@@ -88,53 +96,85 @@ def extract_company_name(text: str, filename: str) -> str:
 
 def extract_turnover(text: str, is_ocr: bool) -> Tuple[Optional[float], float, Optional[str]]:
     text_norm = " ".join(text.lower().split())
+    candidates = _find_turnover_candidates(text_norm)
 
-    # Pattern 1: "turnover ... X crore/Cr"
-    m = re.search(
-        r"(?:annual|total|gross)?\s*turnover[^.]{0,60}?"
-        r"(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(?:crore?s?|cr)\b",
-        text_norm,
-    )
-    if m:
-        val = float(m.group(1)) * 10_000_000
-        return val, CONFIDENCE_REGEX_OCR if is_ocr else CONFIDENCE_REGEX_CLEAN, "regex on text"
+    if _has_conflicting_turnover_candidates(candidates):
+        return None, CONFIDENCE_NOT_FOUND, "conflict: multiple turnover candidates"
 
-    # Pattern 2: "Rs./₹ X Cr" or "INR X Cr"
-    m = re.search(
-        r"(?:rs\.?\s*|inr\s*|₹\s*)(\d+(?:\.\d+)?)\s*(?:crore?s?|cr)\b",
-        text_norm,
-    )
-    if m:
-        val = float(m.group(1)) * 10_000_000
-        return val, CONFIDENCE_REGEX_OCR if is_ocr else CONFIDENCE_REGEX_CLEAN, "regex on text"
-
-    # Pattern 3: "turnover ... X lakh"
-    m = re.search(
-        r"(?:annual|total|gross)?\s*turnover[^.]{0,60}?(\d+(?:\.\d+)?)\s*(?:lakhs?|lac)\b",
-        text_norm,
-    )
-    if m:
-        val = float(m.group(1)) * 100_000
-        return val, CONFIDENCE_REGEX_OCR if is_ocr else CONFIDENCE_REGEX_CLEAN, "regex on text"
-
-    # Pattern 4: Indian number format near turnover keyword (e.g. Rs. 3,10,00,000)
-    m = re.search(
-        r"turnover[\s\S]{0,120}?(?:rs\.?\s*|inr\s*|₹\s*)?(\d{1,2},\d{2},\d{2},\d{3})\b",
-        text_norm,
-    )
-    if m:
-        val = float(m.group(1).replace(",", ""))
-        return val, CONFIDENCE_REGEX_OCR if is_ocr else CONFIDENCE_REGEX_CLEAN, "regex on text"
-
-    # Pattern 5: any standalone "X Cr/Crore" in the document
-    m = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:crore?s?|cr)\b", text_norm)
-    if m:
-        val = float(m.group(1)) * 10_000_000
-        conf = (CONFIDENCE_REGEX_OCR if is_ocr else CONFIDENCE_REGEX_CLEAN) * 0.88
-        return val, conf, "regex on text (low specificity)"
+    if candidates:
+        val, specificity, _, source = sorted(candidates, key=lambda c: (-c[1], c[2]))[0]
+        conf = CONFIDENCE_REGEX_OCR if is_ocr else CONFIDENCE_REGEX_CLEAN
+        if specificity == 1:
+            conf *= 0.88
+        return val, conf, source
 
     # LLM fallback
     return _extract_turnover_llm(text, is_ocr)
+
+
+def _find_turnover_candidates(text_norm: str) -> List[Tuple[float, int, int, str]]:
+    candidates: List[Tuple[float, int, int, str]] = []
+    targeted_patterns = [
+        (
+            r"(?:annual|total|gross)?\s*turnover[^.]{0,60}?"
+            r"(?:rs\.?\s*|inr\s*|₹\s*)?(\d+(?:\.\d+)?)\s*(?:crore?s?|cr)\b",
+            5,
+            10_000_000,
+            "regex on text",
+        ),
+        (
+            r"(?:rs\.?\s*|inr\s*|₹\s*)(\d+(?:\.\d+)?)\s*(?:crore?s?|cr)\b",
+            4,
+            10_000_000,
+            "regex on text",
+        ),
+        (
+            r"(?:annual|total|gross)?\s*turnover[^.]{0,60}?(\d+(?:\.\d+)?)\s*(?:lakhs?|lac)\b",
+            5,
+            100_000,
+            "regex on text",
+        ),
+    ]
+
+    for pattern, specificity, multiplier, source in targeted_patterns:
+        for m in re.finditer(pattern, text_norm):
+            candidates.append((float(m.group(1)) * multiplier, specificity, m.start(), source))
+
+    indian_number_pattern = (
+        r"turnover[\s\S]{0,120}?(?:rs\.?\s*|inr\s*|₹\s*)?"
+        r"(\d{1,2},\d{2},\d{2},\d{3})\b"
+    )
+    for m in re.finditer(indian_number_pattern, text_norm):
+        candidates.append((float(m.group(1).replace(",", "")), 5, m.start(), "regex on text"))
+
+    # Only fall back to standalone crore values when no turnover-specific
+    # candidate was found; this avoids confusing eligibility thresholds with turnover.
+    if not candidates:
+        for m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*(?:crore?s?|cr)\b", text_norm):
+            candidates.append(
+                (float(m.group(1)) * 10_000_000, 1, m.start(), "regex on text (low specificity)")
+            )
+
+    return candidates
+
+
+def _has_conflicting_turnover_candidates(candidates: List[Tuple[float, int, int, str]]) -> bool:
+    distinct_values: List[float] = []
+    for value, _, _, _ in candidates:
+        if not any(_values_close(value, existing) for existing in distinct_values):
+            distinct_values.append(value)
+
+    if len(distinct_values) <= 1:
+        return False
+
+    smallest = min(distinct_values)
+    largest = max(distinct_values)
+    return not _values_close(smallest, largest)
+
+
+def _values_close(left: float, right: float) -> bool:
+    baseline = max(abs(left), abs(right), 1.0)
+    return abs(left - right) / baseline <= 0.05
 
 
 def _extract_turnover_llm(text: str, is_ocr: bool) -> Tuple[Optional[float], float, Optional[str]]:
@@ -194,6 +234,46 @@ def extract_gst(text: str, is_ocr: bool) -> Tuple[Optional[bool], float, Optiona
         if re.search(pat, text, re.IGNORECASE):
             conf = CONFIDENCE_REGEX_OCR if is_ocr else CONFIDENCE_REGEX_CLEAN
             return True, conf, "keyword/pattern match"
+
+    return _extract_gst_llm(text, is_ocr)
+
+
+def _extract_gst_llm(text: str, is_ocr: bool) -> Tuple[Optional[bool], float, Optional[str]]:
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    if not groq_key or groq_key == "your_groq_api_key_here":
+        return False, CONFIDENCE_NOT_FOUND, None
+
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=groq_key)
+        prompt = (
+            "Determine whether this bidder document contains evidence of valid GST registration. "
+            "Return ONLY FOUND or NOT_FOUND. Treat a GSTIN, GST registration number, GST certificate, "
+            "or explicit statement that the firm is registered under GST as FOUND.\n\n"
+            f"Document:\n{text[:3000]}\n\nGST registration evidence:"
+        )
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=20,
+        )
+        result = response.choices[0].message.content.strip().upper()
+
+        if "NOT_FOUND" in result or not result:
+            return False, CONFIDENCE_NOT_FOUND, None
+
+        if "FOUND" in result or re.search(
+            r"\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b",
+            result,
+            re.IGNORECASE,
+        ):
+            conf = CONFIDENCE_LLM_AMBIGUOUS if is_ocr else CONFIDENCE_LLM
+            return True, conf, "LLM extraction"
+
+    except Exception:
+        pass
 
     return False, CONFIDENCE_NOT_FOUND, None
 

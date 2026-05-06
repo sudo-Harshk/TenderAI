@@ -80,6 +80,7 @@ def update_review(
     )
 
     # Mutate criterion result in-place (models have frozen=False)
+    updated_criterion = None
     for cr in result.criteria_results:
         if cr.criterion_id == criterion_id:
             if criterion_key == "gst":
@@ -90,20 +91,34 @@ def update_review(
             cr.confidence = 1.0
             cr.decision = new_decision
             cr.explanation = new_explanation
+            updated_criterion = cr
             break
+
+    if updated_criterion is None:
+        return None
 
     result.overall_decision = calculate_overall_decision(result.criteria_results)
 
-    # Update matching audit entry
-    for entry in audit_log:
-        if entry.bidder_id == bidder_id and entry.criterion_id == criterion_id:
-            entry.reviewed_by = reviewer_name
-            entry.reviewed_at = datetime.utcnow()
-            entry.override_value = confirmed_value
-            entry.decision = new_decision
-            entry.confidence = 1.0
-            entry.explanation = new_explanation
-            break
+    reviewed_at = datetime.utcnow()
+    audit_log.append(
+        AuditEntry(
+            event_type="REVIEWED",
+            timestamp=reviewed_at,
+            bidder_id=result.bidder_id,
+            bidder_name=result.bidder_name,
+            criterion_id=updated_criterion.criterion_id,
+            criterion_label=updated_criterion.criterion_label,
+            extracted_value=new_display,
+            required_value=updated_criterion.required_value,
+            source_page=updated_criterion.source_page,
+            decision=new_decision,
+            confidence=1.0,
+            explanation=new_explanation,
+            reviewed_by=reviewer_name,
+            reviewed_at=reviewed_at,
+            override_value=confirmed_value,
+        )
+    )
 
     return result
 

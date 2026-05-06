@@ -17,8 +17,9 @@ for every decision.
 
 **Frontend**
 - Vite · React 18 · TypeScript
-- Tailwind CSS · IBM Plex Sans
+- Tailwind CSS · Plus Jakarta Sans
 - Lucide React icons
+- React Router for landing/demo routes
 
 ## Project Structure
 
@@ -34,6 +35,7 @@ TenderAI/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/  # UploadSection, ResultsTable, ExplanationPanel, DecisionLog
+│   │   ├── pages/       # LandingPage
 │   │   ├── App.tsx
 │   │   ├── api.ts       # Backend API client
 │   │   └── types.ts     # Shared TypeScript types
@@ -79,17 +81,30 @@ uvicorn main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev
-# Opens at http://localhost:5173
+# Landing page opens at http://localhost:5173
+# Demo app opens at http://localhost:5173/app
 ```
 
 ### Step 4 - Demo
 
-1. Open [http://localhost:5173](http://localhost:5173)
-2. Upload any PDF as the tender document (criteria are pre-configured)
-3. Upload a bidder PDF + enter bidder name → click **Run Evaluation**
-4. Click any row in the results table to see per-criterion explanations
-5. For **NEEDS REVIEW** rows → enter the confirmed value + reviewer name → **Submit Review**
-6. Check the **Decision Log** panel at the bottom for the full audit trail
+1. Open [http://localhost:5173](http://localhost:5173) to view the hackathon landing page
+2. Click **Open Demo** or go directly to [http://localhost:5173/app](http://localhost:5173/app)
+3. Upload any PDF as the tender document (criteria are pre-configured)
+4. Upload a bidder PDF + enter bidder name → click **Run Evaluation**
+5. Click any row in the results table to see per-criterion explanations
+6. For **NEEDS REVIEW** rows → enter the confirmed value + reviewer name → **Submit Review**
+7. Check the **Decision Log** panel at the bottom for the full audit trail
+
+## Landing Page
+
+The root route (`/`) presents TenderAI for the AI for Bharat hackathon with a concise procurement-focused story:
+
+- The problem: slow manual checks, inconsistent interpretation and difficult auditability
+- The solution: AI-assisted extraction, deterministic eligibility logic and human review
+- The trust model: criterion-level evidence, confidence-gated review and immutable audit logging
+- The workflow: upload tender, add bidders, match evidence, explain verdicts and complete officer sign-off
+
+The working evaluation interface remains at `/app`.
 
 ## Demo Flow
 

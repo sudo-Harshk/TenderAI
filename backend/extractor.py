@@ -3,8 +3,6 @@ import os
 import base64
 from typing import Optional, Tuple
 
-import fitz  # PyMuPDF
-
 CONFIDENCE_REGEX_CLEAN = 0.95
 CONFIDENCE_REGEX_OCR = 0.75
 CONFIDENCE_LLM = 0.70
@@ -14,22 +12,35 @@ CONFIDENCE_NOT_FOUND = 0.30
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> Tuple[str, bool]:
     """Extract text using PyMuPDF. Falls back to Mistral OCR for scanned docs."""
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     text = ""
-    for page in doc:
-        text += page.get_text()
-    doc.close()
 
-    if len(text.strip()) < 100:
+    try:
+        import fitz
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        try:
+            for page_num in range(min(15, len(doc))):
+                text += doc[page_num].get_text()
+        finally:
+            doc.close()
+
+        if len(text.strip()) > 500:
+            return text, False
+    except Exception as e:
+        print(f"PyMuPDF failed: {e}")
+        text = ""
+
+    try:
         mistral_key = os.environ.get("MISTRAL_API_KEY", "")
         if mistral_key and mistral_key != "your_mistral_api_key_here":
-            try:
-                return _extract_text_mistral_ocr(pdf_bytes), True
-            except Exception:
-                pass
+            return _extract_text_mistral_ocr(pdf_bytes), True
+    except Exception as e:
+        print(f"Mistral OCR failed: {e}")
+
+    if text.strip():
         return text, True
 
-    return text, False
+    return "", False
 
 
 def _extract_text_mistral_ocr(pdf_bytes: bytes) -> str:
@@ -47,6 +58,28 @@ def _extract_text_mistral_ocr(pdf_bytes: bytes) -> str:
     )
 
     return "\n".join(page.markdown for page in ocr_response.pages)
+
+
+def extract_company_name(text: str, filename: str) -> str:
+    patterns = [
+        r"M/s\.?\s+([A-Z][A-Za-z\s]+(?:Pvt\.?\s*Ltd\.?|Ltd\.?|LLP|Inc\.?))",
+        r"(?:certify that|certified that|this is to certify that)\s+([A-Z][A-Za-z\s&]+?)(?:\s+has|\s+is|\s+with)",
+        r"(?:name of firm|company name|bidder name)\s*[:\-]\s*([A-Z][A-Za-z\s]+)",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            name = match.group(1).strip()
+            if 3 < len(name) < 80:
+                return name
+
+    return (
+        filename.replace(".pdf", "")
+        .replace("_", " ")
+        .replace("-", " ")
+        .title()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -84,9 +117,9 @@ def extract_turnover(text: str, is_ocr: bool) -> Tuple[Optional[float], float, O
         val = float(m.group(1)) * 100_000
         return val, CONFIDENCE_REGEX_OCR if is_ocr else CONFIDENCE_REGEX_CLEAN, "regex on text"
 
-    # Pattern 4: Indian number format near turnover keyword (e.g. 3,10,00,000)
+    # Pattern 4: Indian number format near turnover keyword (e.g. Rs. 3,10,00,000)
     m = re.search(
-        r"turnover[^.]{0,60}?(\d{1,2},\d{2},\d{2},\d{3})\b",
+        r"turnover[\s\S]{0,120}?(?:rs\.?\s*|inr\s*|₹\s*)?(\d{1,2},\d{2},\d{2},\d{3})\b",
         text_norm,
     )
     if m:

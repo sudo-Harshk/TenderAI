@@ -7,7 +7,7 @@ from enum import Enum
 class Decision(str, Enum):
     PASS = "PASS"
     FAIL = "FAIL"
-    NEEDS_REVIEW = "NEEDS REVIEW"
+    FLAGGED = "FLAGGED"
 
 
 class CriterionResult(BaseModel):

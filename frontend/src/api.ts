@@ -17,7 +17,7 @@ export async function uploadTender(file: File): Promise<{ message: string; filen
   return handleResponse(res);
 }
 
-export async function evaluateBidder(file: File, bidderName: string): Promise<BidderResult> {
+export async function evaluateBidder(file: File, bidderName = ""): Promise<BidderResult> {
   const form = new FormData();
   form.append("file", file);
   form.append("bidder_name", bidderName);

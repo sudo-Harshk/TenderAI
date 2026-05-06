@@ -8,6 +8,7 @@ load_dotenv()
 
 from audit import add_to_audit, audit_log, bidder_results, reset_all, update_review
 from evaluator import CRITERIA, evaluate_bidder
+from extractor import extract_company_name, extract_text_from_pdf
 from models import AuditEntry, BidderResult, ReviewRequest
 
 app = FastAPI(title="TenderAI API", version="1.0.0")
@@ -34,12 +35,39 @@ async def upload_tender(file: UploadFile = File(...)):
 @app.post("/evaluate-bidder", response_model=BidderResult)
 async def evaluate_bidder_endpoint(
     file: UploadFile = File(...),
-    bidder_name: str = Form(...),
+    bidder_name: str = Form(""),
 ) -> BidderResult:
-    pdf_bytes = await file.read()
-    result = evaluate_bidder(pdf_bytes, bidder_name)
-    add_to_audit(result)
-    return result
+    try:
+        pdf_bytes = await file.read()
+
+        try:
+            import fitz
+
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            doc.close()
+        except Exception as e:
+            print(f"PDF validation failed: {e}")
+            raise HTTPException(
+                status_code=422,
+                detail="Could not read PDF file. Please ensure the file is a valid PDF.",
+            ) from e
+
+        final_bidder_name = bidder_name.strip()
+        if not final_bidder_name:
+            text, _ = extract_text_from_pdf(pdf_bytes)
+            final_bidder_name = extract_company_name(text, file.filename or "bidder.pdf")
+
+        result = evaluate_bidder(pdf_bytes, final_bidder_name)
+        add_to_audit(result)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Evaluate bidder failed: {e}")
+        raise HTTPException(
+            status_code=422,
+            detail="Could not read PDF file. Please ensure the file is a valid PDF.",
+        ) from e
 
 
 @app.get("/results", response_model=List[BidderResult])

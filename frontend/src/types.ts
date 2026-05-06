@@ -1,4 +1,4 @@
-export type DecisionType = "PASS" | "FAIL" | "NEEDS REVIEW";
+export type DecisionType = "PASS" | "FAIL" | "FLAGGED";
 
 export interface CriterionResult {
   criterion_id: string;

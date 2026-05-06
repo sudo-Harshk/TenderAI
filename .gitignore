@@ -1,11 +1,44 @@
+# Local agent/project notes
+CLAUDE.md
+
+# Environment and secrets
 .env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
+*.egg-info/
 .venv/
 venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node / frontend
 node_modules/
 dist/
+frontend/dist/
+frontend/dist/**
+frontend/.vite/
+**/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Generated/demo data
+*.pdf
+
+# OS and editor files
 .DS_Store
-*.egg-info/
-.pytest_cache/
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/

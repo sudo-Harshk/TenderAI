@@ -43,7 +43,7 @@ def evaluate_criterion(criterion_key: str, extracted_value, confidence: float) -
     c = CRITERIA[criterion_key]
 
     if extracted_value is None or confidence < 0.75:
-        return Decision.NEEDS_REVIEW
+        return Decision.FLAGGED
 
     if c["type"] == "boolean":
         return Decision.PASS if extracted_value else Decision.FAIL
@@ -56,8 +56,8 @@ def calculate_overall_decision(criteria_results: List[CriterionResult]) -> Decis
     decisions = [r.decision for r in criteria_results]
     if Decision.FAIL in decisions:
         return Decision.FAIL
-    if Decision.NEEDS_REVIEW in decisions:
-        return Decision.NEEDS_REVIEW
+    if Decision.FLAGGED in decisions:
+        return Decision.FLAGGED
     return Decision.PASS
 
 
@@ -102,7 +102,7 @@ def generate_explanation(
                 "Rules:\n"
                 "- PASS: explain value found and why it qualifies\n"
                 "- FAIL: explain value found and why it does not qualify\n"
-                "- NEEDS REVIEW: state value was unclear/missing and requires human review\n"
+                "- FLAGGED: state value was unclear/missing and requires officer verification\n"
                 "- Use ₹ for monetary values\n"
                 "One sentence:"
             )
@@ -125,7 +125,7 @@ def generate_explanation(
         return f"{criterion_label}: {val} does not meet the required {c['required_display']} — marked as FAIL."
     return (
         f"{criterion_label}: value could not be read clearly "
-        f"(confidence: {confidence:.2f}) — sent for human review."
+        f"(confidence: {confidence:.2f}) — flagged for officer verification."
     )
 
 

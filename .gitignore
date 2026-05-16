@@ -25,7 +25,6 @@ htmlcov/
 node_modules/
 dist/
 frontend/dist/
-frontend/dist/**
 frontend/.vite/
 **/.vite/
 npm-debug.log*
@@ -33,8 +32,28 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Generated/demo data
+# Build artifacts
+build/
+*.egg
+*.whl
+
+# Test / sample data
 *.pdf
+*.zip
+sample_data/*.pdf
+
+# Hackathon submission files and assets
+assets/
+TenderAI_Hackathon_Files/
+
+# Large media and presentation files
+*.mp4
+*.mp3
+*.wav
+*.ogg
+*.pptx
+*.ppt
+*.srt
 
 # OS and editor files
 .DS_Store
@@ -42,3 +61,5 @@ Thumbs.db
 Desktop.ini
 .vscode/
 .idea/
+*.swp
+*.swo
